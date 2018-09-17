@@ -10,5 +10,7 @@ setup(name='eedlab',
       packages=['eedlab'],
       install_requires=[
           'python-vxi11>=0.9',
+          'python-usbtmc==0.8',
+          'pyusb==1.0.2',
       ],
       zip_safe=False)
