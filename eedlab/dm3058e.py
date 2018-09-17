@@ -10,27 +10,28 @@ class DM3058E(USBTMC):
         super(DM3058E, self).__init__(dev)
         self.write(':measure AUTO')
 
+    FUNC_LUT = {
+        'VDC': 'function:voltage:DC',
+        'VAC': 'function:voltage:AC',
+        'IDC': 'function:current:DC',
+        'IAC': 'function:current:AC',
+        'RESISTANCE': 'function:resistance',
+        'FRESISTANCE': 'function:fresistance',
+        'FREQUENCY': 'function:frequency',
+        'PERIOD': 'function:period',
+        'CONTINUITY': 'function:continuity',
+        'DIODE': 'function:diode',
+        'CAPACITANCE': 'function:capacitance',
+    }
+
     @property
     def function(self):
-        return self.ask(':function?')
+        return {'set':self.ask(':function?'), 'options': self.FUNC_LUT.keys()}
 
     @function.setter
     def function(self, func):
-        func_lut = {
-            'DCV': 'function:voltage:DC',
-            'ACV': 'function:voltage:AC',
-            'DCI': 'function:current:DC',
-            'ACI': 'function:current:AC',
-            'RESISTANCE': 'function:resistance',
-            'FRESISTANCE': 'function:fresistance',
-            'FREQUENCY': 'function:frequency',
-            'PERIOD': 'function:period',
-            'CONTINUITY': 'function:continuity',
-            'DIODE': 'function:diode',
-            'CAPACITANCE': 'function:capacitance',
-        }
         try:
-            self.write(func_lut[func.upper()])
+            self.write(self.FUNC_LUT[func.upper()])
         except KeyError:
             raise KeyError('Unknown function type')
         return self.ask(':function?')
@@ -62,7 +63,7 @@ class DM3058E(USBTMC):
         try:
             try:
                 cmd = round(cmd)
-            except ValueError:
+            except (ValueError,TypeError):
                 pass
             self.write(cmd_lut[cmd])
         except KeyError:
