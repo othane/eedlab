@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-from tmc import USBTMC
+from usbtmc import Instrument
 
 
-class DP832(USBTMC):
+class DP832(Instrument):
     """
     Control the Rigol DP832 Digital Multimeter from python
     """
@@ -11,6 +11,12 @@ class DP832(USBTMC):
         super(DP832, self).__init__(dev)
         self.write(':measure AUTO')
         self.channels = [Channel(self, ch) for ch in range(3)]
+
+    def __repr__(self):
+        return self.idn()
+
+    def idn(self):
+        return self.ask('*IDN?')
 
 
 class Channel(object):
@@ -25,11 +31,11 @@ class Channel(object):
         self.parent = parent
         self.ch = ch
 
-    def ask(self, msg):
-        return self.parent.ask(msg)
+    def ask(self, *args, **kwargs):
+        return self.parent.ask(*args, **kwargs)
 
-    def write(self, msg):
-        return self.parent.write(msg)
+    def write(self, *args, **kwargs):
+        return self.parent.write(*args, **kwargs)
 
     def __repr__(self):
         return str(self.CH_MAP[self.ch])

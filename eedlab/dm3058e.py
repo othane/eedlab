@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-from tmc import USBTMC
+from usbtmc import Instrument
 
 
-class DM3058E(USBTMC):
+class DM3058E(Instrument):
     """
     Control the Rigol DM3058E Digital Multimeter from python
     """
@@ -23,6 +23,12 @@ class DM3058E(USBTMC):
         'DIODE': 'function:diode',
         'CAPACITANCE': 'function:capacitance',
     }
+
+    def __repr__(self):
+        return self.idn()
+
+    def idn(self):
+        return self.ask('*IDN?')
 
     @property
     def function(self):
