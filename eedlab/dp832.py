@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from usbtmc import Instrument
+from vxi11 import Instrument
 
 
 class DP832(Instrument):
