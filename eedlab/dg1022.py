@@ -1,21 +1,50 @@
 #!/usr/bin/env python
-from usbtmc import Instrument
+from universal_usbtmc import import_backend, UsbtmcError
+from sys import platform
+from types import StringTypes
+from collections import Iterable
+
 from time import sleep
 
 
-class DG1022(Instrument):
+class DG1022(object):
     """
     Control the Rigol DM3058E Digital Multimeter from python
     """
-    def __init__(self, dev):
-        super(DG1022, self).__init__(dev)
+    def __init__(self, dev, backends=None):
+        if backends is None:
+            backends = ['python_usbtmc']  # usb only atm
+            if "linux" in platform:
+                # this is a way better api to use than python_usbtmc, but but it only works on linux
+                backends.insert(0, 'linux_kernel')
+        elif not isinstance(backends, Iterable) or isinstance(backends, StringTypes):
+            backends = [backends]
+        self.__backends__ = backends
+
+        for be_name in backends:
+            try:
+                be = import_backend(be_name)
+                instr = be.Instrument(dev)
+                idn = instr.query('*IDN?')
+                self.instr = instr
+                self.backend = be
+                self.backend_name = be_name
+                break
+            except Exception:
+                # I hate this generic error handling too, but the many backends
+                # can throw so many different exception types its just easier
+                # to try and if anything goes wrong then try the next backend
+                pass
+        else:
+            raise UsbtmcError('no matching backends in {} connected using {}'.format(','.join(backends), dev))
+
         self.channels = [DG1022Channel(ch + 1, self) for ch in range(2)]
 
-    def ask(self, message, num=-1, encoding='utf-8'):
-        """ override Instrument ask since ask is broken on the DG1022, it needs a little sleep :( """
-        self.write(message, encoding=encoding)
-        sleep(0.1)
-        return self.read(num=num, encoding=encoding)
+    def ask(self, *args, **kwargs):
+        return self.instr.query(*args, **kwargs)
+
+    def write(self, *args, **kwargs):
+        return self.instr.write(*args, **kwargs)
 
     def __repr__(self):
         return self.idn()
@@ -33,6 +62,57 @@ class DG1022(Instrument):
 
     def phase_align(self):
         self.write('PHASE:ALIGN')
+
+    def trigger(self, trig_type=None):
+        trig_type = trig_type or 'BUS'
+        self.write('TRIGGER:SOURCE {}'.format(trig_type))
+
+    @property
+    def burst_mode(self):
+        return self.ask('BURST:MODE?')
+
+    @burst_mode.setter
+    def burst_mode(self, trig_type):
+        self.write('BURST:MODE {}'.format(trig_type))
+
+    @property
+    def burst_cycles(self):
+        res = self.ask('BURST:NCYCLES?')
+        if res == 'Infinite':
+            return float('inf')
+        else:
+            return float(res)
+
+    @burst_cycles.setter
+    def burst_cycles(self, cycles):
+        self.write('BURST:NCYCLES {}'.format(cycles))
+
+    @property
+    def burst_period(self):
+        return float(self.ask('BURST:PERIOD?'))
+
+    @burst_period.setter
+    def burst_period(self, period):
+        self.write('BURST:PERIOD{}'.format(period))
+
+    @property
+    def burst_phase(self):
+        return float(self.ask('BURST:PHASE?'))
+
+    @burst_phase.setter
+    def burst_phase(self, phase):
+        self.write('BURST:PHASE{}'.format(phase))
+
+    @property
+    def burst(self):
+        res = self.ask('BURST:STATE?')
+        return res.upper() == 'ON'
+
+    @burst.setter
+    def burst(self, state):
+        if type(state) == bool:
+            state = 'ON' if state else 'OFF'
+        self.write('BURST:STATE {}'.format(state))
 
 
 class DG1022Channel(object):
@@ -58,7 +138,7 @@ class DG1022Channel(object):
         return self.parent.write(message, encoding=encoding)
 
     def __repr__(self):
-        return '{} CHANNEL 1'.format(self.parent)
+        return '{} CHANNEL {}'.format(self.parent, self.ch)
 
     def apply(self, function='DEFAULT', amplitude='DEFAULT', offset='DEFAULT'):
         return self.write('APPLY:{} {},{},{}'.format(function, frequency, amplitude, offset))
@@ -114,6 +194,30 @@ class DG1022Channel(object):
     @amplitude.setter
     def amplitude(self, amp):
         self.write('VOLTAGE {}'.format(amp))
+
+    @property
+    def vdc(self):
+        return self.ask('VOLTAGE:OFFSET?')
+
+    @vdc.setter
+    def vdc(self, vdc):
+        self.write('VOLTAGE:OFFSET {}'.format(vdc))
+
+    @property
+    def vhigh(self):
+        return self.ask('VOLTAGE:HIGH?')
+
+    @vhigh.setter
+    def vhigh(self, vhigh):
+        self.write('VOLTAGE:HIGH {}'.format(vhigh))
+
+    @property
+    def vlow(self):
+        return self.ask('VOLTAGE:LOW?')
+
+    @vlow.setter
+    def vlow(self, vlow):
+        self.write('VOLTAGE:LOW {}'.format(vlow))
 
     @property
     def output(self):

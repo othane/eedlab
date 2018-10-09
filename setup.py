@@ -12,5 +12,6 @@ setup(name='eedlab',
           'python-vxi11>=0.9',
           'python-usbtmc==0.8',
           'pyusb==1.0.2',
+          'universal-usbtmc==0.3.5',
       ],
       zip_safe=False)
