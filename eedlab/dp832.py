@@ -1,16 +1,48 @@
 #!/usr/bin/env python
-from vxi11 import Instrument
+from universal_usbtmc import import_backend, UsbtmcError
+from sys import platform
+from types import StringTypes
+from collections import Iterable
 
 
-class DP832(Instrument):
+class DP832(object):
     """
-    Control the Rigol DP832 Digital Multimeter from python
+    Control the Rigol DP832 Power Supply Unit from python
     """
+    def __init__(self, dev, backends=None):
+        if backends is None:
+            backends = ['python_usbtmc', 'python_vxi11']
+            if "linux" in platform:
+                # this is a way better api to use than python_usbtmc, but but it only works on linux
+                backends.insert(0, 'linux_kernel')
+        elif not isinstance(backends, Iterable) or isinstance(backends, StringTypes):
+            backends = [backends]
+        self.__backends__ = backends
 
-    def __init__(self, dev):
-        super(DP832, self).__init__(dev)
+        for be_name in backends:
+            try:
+                be = import_backend(be_name)
+                instr = be.Instrument(dev)
+                idn = instr.query('*IDN?')
+                self.instr = instr
+                self.backend = be
+                self.backend_name = be_name
+                break
+            except Exception:
+                # I hate this generic error handling too, but the many backends
+                # can throw so many different exception types its just easier
+                # to try and if anything goes wrong then try the next backend
+                pass
+        else:
+            raise UsbtmcError('no matching backends in {} connected using {}'.format(','.join(backends), dev))
         self.write(':measure AUTO')
         self.channels = [Channel(self, ch) for ch in range(3)]
+
+    def ask(self, *args, **kwargs):
+        return self.instr.query(*args, **kwargs)
+
+    def write(self, *args, **kwargs):
+        return self.instr.write(*args, **kwargs)
 
     def __repr__(self):
         return self.idn()
