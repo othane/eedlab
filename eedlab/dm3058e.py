@@ -1,14 +1,42 @@
 #!/usr/bin/env python
-from usbtmc import Instrument
+from universal_usbtmc import import_backend, UsbtmcError
+from sys import platform
 
 
-class DM3058E(Instrument):
+class DM3058E(object):
     """
     Control the Rigol DM3058E Digital Multimeter from python
     """
     def __init__(self, dev):
         super(DM3058E, self).__init__(dev)
+    def __init__(self, dev, backends=None):
+        if backends is None:
+            backends = ['python_usbtmc']
+            if "linux" in platform:
+                # this is a way better api to use than python_usbtmc, but but it only works on linux
+                backends.insert(0, 'linux_kernel')
+        elif not isinstance(backends, Iterable) or isinstance(backends, StringTypes):
+            backends = [backends]
+        self.__backends__ = backends
+
+        for be_name in backends:
+            try:
+                be = import_backend(be_name)
+                instr = be.Instrument(dev)
+                idn = instr.query('*IDN?')
+                self.instr = instr
+                self.backend = be
+                self.backend_name = be_name
+                break
+            except Exception:
+                # I hate this generic error handling too, but the many backends
+                # can throw so many different exception types its just easier
+                # to try and if anything goes wrong then try the next backend
+                pass
+        else:
+            raise UsbtmcError('no matching backends in {} connected using {}'.format(','.join(backends), dev))
         self.write(':measure AUTO')
+
 
     FUNC_LUT = {
         'VDC': 'function:voltage:DC',
@@ -23,6 +51,15 @@ class DM3058E(Instrument):
         'DIODE': 'function:diode',
         'CAPACITANCE': 'function:capacitance',
     }
+
+    def ask(self, *args, **kwargs):
+        res = self.instr.query(*args, **kwargs).split()
+        if res[0][0] == '#':
+            return ' '.join(res[1::])
+        return ' '.join(res)
+
+    def write(self, *args, **kwargs):
+        return self.instr.write(*args, **kwargs)
 
     def __repr__(self):
         return self.idn()
