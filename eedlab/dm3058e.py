@@ -1,15 +1,19 @@
 #!/usr/bin/env python
 from universal_usbtmc import import_backend, UsbtmcError
 from sys import platform
+try:
+    from types import StringTypes
+except ImportError:
+    StringTypes = (str,)
+from collections import Iterable
 
 
 class DM3058E(object):
     """
     Control the Rigol DM3058E Digital Multimeter from python
     """
-    def __init__(self, dev):
-        super(DM3058E, self).__init__(dev)
     def __init__(self, dev, backends=None):
+        self.dev = dev
         if backends is None:
             backends = ['python_usbtmc']
             if "linux" in platform:

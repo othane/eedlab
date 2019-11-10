@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 from universal_usbtmc import import_backend, UsbtmcError
 from sys import platform
-from types import StringTypes
+try:
+    from types import StringTypes
+except ImportError:
+    StringTypes = (str,)
 from collections import Iterable
 
 

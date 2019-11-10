@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 from universal_usbtmc import import_backend, UsbtmcError
 from sys import platform
-from types import StringTypes
+try:
+    from types import StringTypes
+except ImportError:
+    StringTypes = (str,)
 from collections import Iterable
 
 from time import sleep
@@ -13,7 +16,7 @@ class DG1022(object):
     """
     def __init__(self, dev, backends=None):
         if backends is None:
-            backends = ['python_usbtmc']  # usb only atm
+            backends = ['python_usbtmc']
             if "linux" in platform:
                 # this is a way better api to use than python_usbtmc, but but it only works on linux
                 backends.insert(0, 'linux_kernel')
@@ -30,10 +33,11 @@ class DG1022(object):
                 self.backend = be
                 self.backend_name = be_name
                 break
-            except Exception:
+            except Exception as e:
                 # I hate this generic error handling too, but the many backends
                 # can throw so many different exception types its just easier
                 # to try and if anything goes wrong then try the next backend
+                print('Exceptional {}'.format(e))
                 pass
         else:
             raise UsbtmcError('no matching backends in {} connected using {}'.format(','.join(backends), dev))
@@ -41,7 +45,8 @@ class DG1022(object):
         self.channels = [DG1022Channel(ch + 1, self) for ch in range(2)]
 
     def ask(self, *args, **kwargs):
-        return self.instr.query(*args, **kwargs)
+        ret = self.instr.query(*args, **kwargs)
+        return ret
 
     def write(self, *args, **kwargs):
         return self.instr.write(*args, **kwargs)
@@ -64,6 +69,7 @@ class DG1022(object):
         self.write('PHASE:ALIGN')
 
     def trigger(self, trig_type=None):
+        """ from manual trig_type can be {IMMediate|EXTernal|BUS} """
         trig_type = trig_type or 'BUS'
         self.write('TRIGGER:SOURCE {}'.format(trig_type))
 
@@ -89,11 +95,11 @@ class DG1022(object):
 
     @property
     def burst_period(self):
-        return float(self.ask('BURST:PERIOD?'))
+        return float(self.ask('BURST:INTERNAL:PERIOD?'))
 
     @burst_period.setter
     def burst_period(self, period):
-        self.write('BURST:PERIOD{}'.format(period))
+        self.write('BURST:INTERNAL:PERIOD{}'.format(period))
 
     @property
     def burst_phase(self):
@@ -106,7 +112,7 @@ class DG1022(object):
     @property
     def burst(self):
         res = self.ask('BURST:STATE?')
-        return res.upper() == 'ON'
+        return 'ON' in res.upper()
 
     @burst.setter
     def burst(self, state):
@@ -127,7 +133,10 @@ class DG1022Channel(object):
             msg = message.split('?')
             msg.insert(-1, ':CH{}?'.format(self.ch))
             message = ''.join(msg)
-        return self.parent.ask(message, num=num, encoding=encoding)
+        res = self.parent.ask(message, num=num, encoding=encoding)
+        if self.ch != 1:
+            res = res.replace('CH{}:'.format(self.ch), '')
+        return res
 
     def write(self, message, encoding='utf-8'):
         """ pass though for ch1, else append CH otherwise """
@@ -140,8 +149,8 @@ class DG1022Channel(object):
     def __repr__(self):
         return '{} CHANNEL {}'.format(self.parent, self.ch)
 
-    def apply(self, function='DEFAULT', amplitude='DEFAULT', offset='DEFAULT'):
-        return self.write('APPLY:{} {},{},{}'.format(function, frequency, amplitude, offset))
+    def apply(self, function=None, frequency=None, amplitude=None, offset=None):
+        return self.write('APPLY:{} {},{},{}'.format(function or '', frequency or '', amplitude or '', offset or ''))
 
     @property
     def phase(self):
