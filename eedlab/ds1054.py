@@ -123,6 +123,16 @@ class DS1054(Instrument):
         self.write('TRIGGER:{}:LEVEL {}'.format(ttype, level))
 
     @property
+    def trigger_source(self):
+        ttype = self.trigger_type
+        return self.ask('TRIGGER:{}:SOURCE?'.format(ttype))
+
+    @trigger_source.setter
+    def trigger_source(self, src):
+        ttype = self.trigger_type
+        self.write('TRIGGER:{}:SOURCE {}'.format(ttype, src))
+
+    @property
     def measure_source(self):
         return self.ask('measure:source?')
 
@@ -155,6 +165,25 @@ class DS1054(Instrument):
         return self.write('measure:setup:max {}'.format(high))
 
     def measure(self, item, srcs):
+        """
+        Measure any waveform parameter of the specified source, or query the
+        measurement result of any waveform parameter of the specified source.
+
+        <item>
+            {VMAX| VMIN| VPP| VTOP| VBASe| VAMP| VAVG| VRMS| OVERshoot|
+            PREShoot| MARea| MPARea| PERiod| FREQuency| RTIMe| FTIMe| PWIDth|
+            NWIDth| PDUTy| NDUTy| RDELay| FDELay| RPHase| FPHase| TVMAX| TVMIN|
+            PSLEWrate| NSLEWrate| VUPper| VMID| VLOWer| VARIance| PVRMS|
+            PPULses| NPULses| PEDGes| NEDGes}
+        <srcs>
+            When <item> is PERiod, FREQuency, PWIDth, NWIDth, PDUTy, NDUTy,
+            RDELay, FDELay, RPHase, or FPHase, the range of <src> is
+            {D0|D1|D2|D3|D4|D5|D6|D7|D8|D9|D10|D11|D12|D13|D14|D15|CHANnel1|CHAN
+            nel2|CHANnel3|CHANnel4|MATH}.
+
+            When <item> is any of other measurement parameters, the range of
+            <src> is {CHANnel1|CHANnel2|CHANnel3|CHANnel4|MATH}.
+        """
         if type(srcs) == str:
             srcs = [srcs]
         elif type(srcs) != list:
@@ -181,7 +210,11 @@ class DS1054(Instrument):
         self.write(':measure:statistic:item {},{}'.format(item, ch))
 
     def stat(self, item, type='averages', ch=None):
-        return self.ask(':measure:statistic:item? {},{}'.format(type, item))
+        if ch is None:
+            ch = ''
+        elif isinstance(ch, list) or isinstance(ch, tuple):
+            ch = ','.join(ch)
+        return self.ask(':measure:statistic:item? {},{},{}'.format(type, item, ch))
 
     def stats_reset(self):
         self.write(':measure:statistic:reset')
@@ -227,7 +260,11 @@ class DS1054(Instrument):
 
     @property
     def mem_depth(self):
-        return int(self.ask(':acquire:mdepth?'))
+        mdepth = self.ask(':acquire:mdepth?')
+        try:
+            return int(mdepth)
+        except ValueError:
+            return mdepth
 
     @mem_depth.setter
     def mem_depth(self, mdepth):
@@ -340,5 +377,16 @@ class DS1054Channel(object):
         return self.parent.write(':channel{}:bwlimit {}'.format(self.ch, bw))
 
     def measure(self, item):
+        """
+        Measure any waveform parameter of the specified source, or query the
+        measurement result of any waveform parameter of the specified source.
+
+        <item>
+            {VMAX| VMIN| VPP| VTOP| VBASe| VAMP| VAVG| VRMS| OVERshoot|
+            PREShoot| MARea| MPARea| PERiod| FREQuency| RTIMe| FTIMe| PWIDth|
+            NWIDth| PDUTy| NDUTy| RDELay| FDELay| RPHase| FPHase| TVMAX| TVMIN|
+            PSLEWrate| NSLEWrate| VUPper| VMID| VLOWer| VARIance| PVRMS|
+            PPULses| NPULses| PEDGes| NEDGes}
+        """
         return self.parent.measure(item, 'CHAN{}'.format(self.ch))
 
